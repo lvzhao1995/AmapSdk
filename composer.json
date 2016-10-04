@@ -1,0 +1,15 @@
+{
+  "name" : "AmapSd",
+  "version" : "0.1",
+  "require" : {
+    "php" : ">=5.4.0"
+  },
+  "repositories" : [ {
+    "type" : "composer",
+    "url" : "https://packagist.org/"
+  } ],
+  "authors" : [ {
+    "name" : "lvzhao1995",
+    "email" : "abc-1.2@qq.com"
+  } ]
+}
