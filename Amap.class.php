@@ -29,6 +29,18 @@ class amap
 
     const DISTANCE_URL = '/distance?';
 
+    const DISTRICT_URL = '/config/district?';
+
+    const TEXT_SEARCH_URL = '/place/text?';
+
+    const AROUND_SEARCH_URL = '/place/around?';
+
+    const POLYGON_SEARCH_URL = '/place/polygon?';
+
+    const ID_SRARCH_URL = '/place/detail?';
+    
+    const IP_URL = '/ip?';
+
     private $sign = false;
 
     private $private_key;
@@ -115,6 +127,7 @@ class amap
     public function regeo($location, $ops = [])
     {
         $ops['key'] = $this->key;
+        $this->dealOps($ops, 'batch');
         $ops['location'] = $location;
         $ops['output'] = 'json';
         $paramStr = http_build_query($ops);
@@ -293,6 +306,236 @@ class amap
     }
 
     /**
+     * 行政区域查询
+     * 
+     * @param array $ops
+     *            参数数组，此接口所有参数均为可选
+     * [
+     *     'keywords'=>'',          //查询关键字,只支持单个关键词，可用政区名称、citycode、adcode
+     *     'subdistrict'=>1,        //子级行政区，0：不返回下级行政区；1：返回下一级行政区；并以此类推
+     *                              //行政区级别包括：国家、省/直辖市、市、区/县、商圈、街道多级数据，其中街道数据仅在keywords为区/县、商圈的时候显示
+     *     'showbiz'=>true,         //是否显示商圈，可选为true/false
+     *     'page'=>1,               //需要第几页数据，最外层的districts最多会返回20个数据
+     *     'extensions'=>'base',    //此项控制行政区信息中返回行政区边界坐标点；
+     *                              //base:不返回行政区边界坐标点；all:只返回当前查询district的边界值，不返回子节点的边界值；
+     *     'filter'=>'',            //根据区划过滤，填入后只返回该省/直辖市信息，填入adcode
+     * ]
+     * @return boolean|array 成功返回结果，内容参考http://lbs.amap.com/api/webservice/guide/api/district/#district
+     */
+    public function district($ops = [])
+    {
+        $ops['key'] = $this->key;
+        $ops['output'] = 'json';
+        $this->dealOps($ops, 'showbiz');
+        $paramStr = http_build_query($ops);
+        $url = self::API_URL . self::DISTRICT_URL . $paramStr;
+        if ($this->sign) {
+            $sign = $this->signature($ops);
+            $url .= '&sig=' . $sign;
+        }
+        $result = $this->http_get($url);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (! $json || $json['status'] == 0) {
+                $this->errCode = $json['infocode'];
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+    
+    /**
+     * 关键字搜索
+     * @param string $keywords    查询关键字，多个关键字用'|'分隔
+     * @param string $types       查询POI类型，多个类型用'|'分隔
+     *                 keywords和types两者至少必选其一
+     *                 POI分类编码表下载http://a.amap.com/lbs/static/zip/AMap_API_Table.zip
+     * @param array $ops          可选参数，列表如下
+     * [
+     *     'city'=>'',             //查询城市,可选值：城市中文、中文全拼、citycode、adcode
+     *     'citylimit'=>'false'    //仅返回指定城市数据，可选值：true/false
+     *     'children'=>''          //是否按照层级展示子POI数据，可选值：1/''
+     *     'offset'=>20,           //每页记录数据，最大值25，超出最大值按最大值处理
+     *     'page'=>1,              //当前页数，最大翻页数100
+     *     'building'=>'',         //建筑物POI编号，传入后只在该建筑物之内进行搜索
+     *     'floor'=>'',            //传入楼层必须有建筑物id，否则报错。如果当前楼层有结果则返回，否则返回该建筑物搜索结果
+     *     'extensions'=>'base'    //返回结果控制，base返回基本地址信息，all返回地址信息、附近POI、道路及道路交叉口
+     * ]
+     * @return boolean|array   成功返回数组，内容参考http://lbs.amap.com/api/webservice/guide/api/search/#text
+     */
+    public function textSearch($keywords = '', $types = '', $ops = [])
+    {
+        $ops['key']=$this->key;
+        $ops['output'] = 'json';
+        $this->dealOps($ops, 'citylimit');
+        if ($keywords != '') {
+            $ops['keywords'] = $keywords;
+        }
+        if ($types != '') {
+            $ops['types'] = $types;
+        }
+        $paramStr = http_build_query($ops);
+        $url = self::API_URL . self::TEXT_SEARCH_URL. $paramStr;
+        if ($this->sign) {
+            $sign = $this->signature($ops);
+            $url .= '&sig=' . $sign;
+        }
+        $result = $this->http_get($url);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (! $json || $json['status'] == 0) {
+                $this->errCode = $json['infocode'];
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+    
+    /**
+     * 周bain搜索
+     * @param string $location  中心点坐标，经度，纬度
+     * @param array $ops        可选参数
+     * [
+     *    'keywords'=>'',         //查询关键字，多个关键字用'|'分隔
+     *    'types'=>'',            //查询POI类型，多个类型用'|'分隔，POI分类编码表下载http://a.amap.com/lbs/static/zip/AMap_API_Table.zip
+     *    'city'=>'',             //查询城市，可选值：城市中文、中文全拼、citycode、adcode
+     *    'radius'=>3000,         //查询半径，取值范围0~50000，大于50000按默认值，单位米
+     *    'sortrule'=>'distance', //按距离排序：distance；综合排序：weight
+     *    'offset'=>20,           //每页记录数，最大值25，超出范围按最大值处理
+     *    'page'=>1,              //当前页数，最大翻页数100
+     *    'extensions'=>'base',   //base返回基本地址信息；取值为all返回地址信息、附近POI、道路以及道路交叉口信息。
+     * ]
+     * @return boolean|array   成功返回数组，内容参考http://lbs.amap.com/api/webservice/guide/api/search/#around
+     */
+    public function aroundSearch($location, $ops = [])
+    {
+        $ops['key'] = $this->key;
+        $ops['location'] = $location;
+        $ops['output'] = 'json';
+        $paramStr = http_build_query($ops);
+        $url = self::API_URL . self::AROUND_SEARCH_URL . $paramStr;
+        if ($this->sign) {
+            $sign = $this->signature($ops);
+            $url .= '&sig=' . $sign;
+        }
+        $result = $this->http_get($url);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (! $json || $json['status'] == 0) {
+                $this->errCode = $json['infocode'];
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+    
+    /**
+     * 多边形搜索
+     * @param string $polygon   经纬度坐标对（经度，纬度），坐标对用';'分隔。矩形可传入左上右下两坐标对，其他情况首位坐标对需相同
+     * @param array $ops        可选参数
+     * [
+     *    'keywords'=>'',         //查询关键字，多个关键字用'|'分隔
+     *    'types'=>'',            //查询POI类型，多个类型用'|'分隔，POI分类编码表下载http://a.amap.com/lbs/static/zip/AMap_API_Table.zip
+     *    'offset'=>20,           //每页记录数，最大值25，超出范围按最大值处理
+     *    'page'=>1,              //当前页数，最大翻页数100
+     *    'extensions'=>'base',   //base返回基本地址信息；取值为all返回地址信息、附近POI、道路以及道路交叉口信息。
+     * ]
+     * @return boolean|array    成功返回结果数组，内容参考http://lbs.amap.com/api/webservice/guide/api/search/#polygon
+     */
+    public function polygon($polygon,$ops=[]){
+        $ops['key'] = $this->key;
+        $ops['polygon'] = $polygon;
+        $ops['output'] = 'json';
+        $paramStr = http_build_query($ops);
+        $url = self::API_URL . self::POLYGON_SEARCH_URL . $paramStr;
+        if ($this->sign) {
+            $sign = $this->signature($ops);
+            $url .= '&sig=' . $sign;
+        }
+        $result = $this->http_get($url);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (! $json || $json['status'] == 0) {
+                $this->errCode = $json['infocode'];
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     *
+     * @param string|integer $id
+     *            兴趣点id
+     * @return boolean|array 成功返回数组，内容与关键字搜索类似，参考http://lbs.amap.com/api/webservice/guide/api/search/#text
+     */
+    public function idSearch($id)
+    {
+        $data['key'] = $this->key;
+        $data['id'] = $id;
+        $paramStr = http_build_query($data);
+        $url = self::API_URL . self::ID_SRARCH_URL . $paramStr;
+        if ($this->sign) {
+            $sign = $this->signature($data);
+            $url .= '&sig=' . $sign;
+        }
+        $result = $this->http_get($url);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (! $json || $json['status'] == 0) {
+                $this->errCode = $json['infocode'];
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * IP定位
+     * @param string $ip   需要搜索的ip，仅支持国内。不传参数取接口请求ip
+     * @param boolean $all 结果详略，true返回数组，false返回省市拼接字符串
+     * @return boolean|array|string  成功返回结果。国外ip或非法ip返回空。数组内容参考http://lbs.amap.com/api/webservice/guide/api/ipconfig/#ip
+     */
+    public function ip($ip = '',$all=false)
+    {
+        $data['key'] = $this->key;
+        if ($ip != '') {
+            $data['ip'] = $ip;
+        }
+        $paramStr = http_build_query($data);
+        $url = self::API_URL . self::IP_URL . $paramStr;
+        if ($this->sign) {
+            $sign = $this->signature($data);
+            $url .= '&sig=' . $sign;
+        }
+        $result = $this->http_get($url);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (! $json || $json['status'] == 0) {
+                $this->errCode = $json['infocode'];
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            if ($all) {
+                return $json;
+            } else {
+                return ($json['province'] == [] ? '' : $json['province']) . ($json['city'] == [] ? '' : $json['city']);
+            }
+        }
+        return false;
+    }
+
+    /**
      * 数字签名算法
      * @param array $data
      * @return string
@@ -328,6 +571,24 @@ class amap
             return $sContent;
         } else {
             return false;
+        }
+    }
+    
+    /**
+     * 将数组中boolean类型值转为string
+     * @param array $array
+     * @param string $key
+     */
+    private function dealOps(&$array, $key)
+    {
+        if (isset($array[$key])) {
+            if ($array[$key] === true || $array[$key] == 'true') {
+                $array[$key] = 'true';
+            } elseif ($array[$key] === false || $array[$key] == 'false') {
+                $array[$key] = 'false';
+            } else {
+                unset($array[$key]);
+            }
         }
     }
 }
