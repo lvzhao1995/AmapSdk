@@ -51,6 +51,8 @@ class amap
 
     const WEATHER_URL = '/weather/weatherInfo?';
 
+    const INPUT_TIPS_URL = '/assistant/inputtips?';
+
     private $sign = false;
 
     private $private_key;
@@ -688,6 +690,47 @@ class amap
         $url = self::API_URL . self::WEATHER_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($data);
+            $url .= '&sig=' . $sign;
+        }
+        $result = $this->http_get($url);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (! $json || $json['status'] == 0) {
+                $this->errCode = $json['infocode'];
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 输入提示
+     *
+     * @param string $keywords
+     *            查询关键词
+     * @param array $ops
+     *            可选参数
+     *            [
+     *            'type'=>'', //POI分类，可选分类名称或分类代码，建议使用分类代码
+     *            'location'=>'', //坐标，格式：“X,Y”（经度,纬度），不可以包含空格
+     *            'city'=>'', //搜索城市，可选值：城市中文、中文全拼、citycode、adcode。不填则在全国范围内搜索。
+     *            'citylimit'=>false, //仅返回指定城市数据，可选值true/false
+     *            'datatype'=>'all', //可选值：all-返回所有数据类型、poi-返回POI数据类型、bus-返回公交站点数据类型、busline-返回公交线路数据类型
+     *            ]
+     * @return boolean|array 成功返回结果数组，内容参考http://lbs.amap.com/api/webservice/guide/api/inputtips#inputtips
+     */
+    public function inputtips($keywords, $ops)
+    {
+        $ops['key'] = $this->key;
+        $ops['keywords'] = $keywords;
+        $ops['output'] = 'json';
+        $this->dealOps($ops, 'citylimit');
+        $paramStr = http_build_query($ops);
+        $url = self::API_URL . self::INPUT_TIPS_URL . $paramStr;
+        if ($this->sign) {
+            $sign = $this->signature($ops);
             $url .= '&sig=' . $sign;
         }
         $result = $this->http_get($url);
