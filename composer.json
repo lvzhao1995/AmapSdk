@@ -1,15 +1,16 @@
 {
-  "name" : "AmapSd",
-  "version" : "0.1",
-  "require" : {
-    "php" : ">=5.4.0"
-  },
-  "repositories" : [ {
-    "type" : "composer",
-    "url" : "https://packagist.org/"
-  } ],
+  "name" : "lvzhao1995/AmapSdk",
+  "description": "高德地图SDK",
+  "keywords": [
+      "amap",
+      "gaode",
+      "gaode-sdk"
+  ],
   "authors" : [ {
     "name" : "lvzhao1995",
     "email" : "abc-1.2@qq.com"
-  } ]
+  } ],
+  "require" : {
+    "php" : ">=5.4.0"
+  }
 }
