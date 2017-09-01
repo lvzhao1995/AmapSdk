@@ -11,6 +11,11 @@
     "email" : "abc-1.2@qq.com"
   } ],
   "require" : {
-    "php" : ">=5.4.0"
+    "php" : ">=5.5"
+  },
+  "autoload": {
+    "psr-4": {
+      "Amap\\": "src/"
+    }
   }
 }

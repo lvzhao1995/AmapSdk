@@ -1,4 +1,5 @@
 <?php
+
 namespace Amap;
 
 /**
@@ -19,7 +20,9 @@ namespace Amap;
 class amap
 {
 
-    const API_URL = 'http://restapi.amap.com/v3';
+    const API_V3_URL = 'http://restapi.amap.com/v3';
+
+    const API_V4_URL = 'http://restapi.amap.com/v4';
 
     const GEO_URL = '/geocode/geo?';
 
@@ -30,6 +33,8 @@ class amap
     const BUS_URL = '/direction/transit/integrated?';
 
     const DRIVE_URL = '/direction/driving?';
+
+    const BICYCLING_URL = '/direction/bicycling?';
 
     const DISTANCE_URL = '/distance?';
 
@@ -53,15 +58,31 @@ class amap
 
     const INPUT_TIPS_URL = '/assistant/inputtips?';
 
+    const YUNTU_API_V3_URL = 'http://yuntuapi.amap.com';
+
+    const YUNTU_CREATE_TABLE_URL = '/datamanage/table/create';
+
+    const YUNTU_CREATE_DATA_URL = '/datamanage/data/create';
+
+    const YUNTU_BATCH_CREATE_DATA_URL = '/datamanage/data/batchcreate';
+
+    const YUNTU_UPDATE_DATA_URL = '/datamanage/data/update';
+
+    const YUNTU_DELETE_DATA_URL = '/datamanage/data/delete';
+
+    const YUNTU_IMPORT_STATUS_URL = '/datamanage/batch/importstatus?';
+
     private $sign = false;
 
     private $private_key;
 
     private $key;
 
-    public $errCode;
+    public $errCode=0;
 
     public $errMsg;
+
+    public $tableid;
 
     public function __construct($options)
     {
@@ -106,7 +127,7 @@ class amap
         if ($city != '')
             $data['city'] = $city;
         $paramStr = http_build_query($data);
-        $url = self::API_URL . self::GEO_URL . $paramStr;
+        $url = self::API_V3_URL . self::GEO_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($data);
             $url .= '&sig=' . $sign;
@@ -114,8 +135,7 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -148,8 +168,9 @@ class amap
         $this->dealOps($ops, 'batch');
         $ops['location'] = $location;
         $ops['output'] = 'json';
+        unset($ops['callback']);
         $paramStr = http_build_query($ops);
-        $url = self::API_URL . self::REGEO_URL . $paramStr;
+        $url = self::API_V3_URL . self::REGEO_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($ops);
             $url .= '&sig=' . $sign;
@@ -157,8 +178,7 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -184,7 +204,7 @@ class amap
             'destination' => $destination
         ];
         $paramStr = http_build_query($data);
-        $url = self::API_URL . self::WALK_URL . $paramStr;
+        $url = self::API_V3_URL . self::WALK_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($data);
             $url .= '&sig=' . $sign;
@@ -192,8 +212,7 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -230,8 +249,9 @@ class amap
         $ops['destination'] = $destination;
         $ops['city'] = $city;
         $ops['output'] = 'json';
+        unset($ops['callback']);
         $paramStr = http_build_query($ops);
-        $url = self::API_URL . self::BUS_URL . $paramStr;
+        $url = self::API_V3_URL . self::BUS_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($ops);
             $url .= '&sig=' . $sign;
@@ -239,8 +259,7 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -283,8 +302,9 @@ class amap
         if (isset($ops['number'])) {
             $ops['number'] = strtoupper($ops['number']);
         }
+        unset($ops['callback']);
         $paramStr = http_build_query($ops);
-        $url = self::API_URL . self::DRIVE_URL . $paramStr;
+        $url = self::API_V3_URL . self::DRIVE_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($ops);
             $url .= '&sig=' . $sign;
@@ -292,9 +312,42 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 骑行路径规划
+     *
+     * @param string $origin
+     *            出发点 经度，纬度
+     * @param string $destination
+     *            目的地 经度，纬度
+     * @return boolean|array 成功返回数组，内容参考http://lbs.amap.com/api/webservice/guide/api/direction#t8
+     */
+    public function bicycling($origin, $destination)
+    {
+        $ops=[
+            'key'=>$this->key,
+            'origin'=>$origin,
+            'destination'=>$destination
+        ];
+        $paramStr = http_build_query($ops);
+        $url = self::API_V4_URL . self::BICYCLING_URL . $paramStr;
+        if ($this->sign) {
+            $sign = $this->signature($ops);
+            $url .= '&sig=' . $sign;
+        }
+        $result = $this->http_get($url);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['errcode'] != 0) {
+                $this->errMsg = $json['errdetail'];
                 return false;
             }
             return $json;
@@ -309,10 +362,10 @@ class amap
      *            出发点，支持100个坐标对，坐标对之间用'|'分隔
      * @param string $destination
      *            目的地，规则： lon,lat（经度,纬度）,支持一个
-     * @param number $type
+     * @param int $type
      *            路径计算的方式和方法,0：直线距离,1：驾车导航距离（仅支持国内坐标）。其中必须特别指出，当为1 的时候会考虑路况因素，故返回结果可能存在不同
      *            2：公交规划距离（仅支持同城坐标）,3：步行规划距离（仅支持5km之间的距离）
-     * @return boolean|array 成功返回数组，内容参考http://lbs.amap.com/api/webservice/guide/api/direction/#distance
+     * @return bool|mixed 成功返回数组，内容参考http://lbs.amap.com/api/webservice/guide/api/direction/#distance
      */
     public function distance($origins, $destination, $type = 1)
     {
@@ -322,7 +375,7 @@ class amap
             'type' => $type
         ];
         $paramStr = http_build_query($data);
-        $url = self::API_URL . self::DISTANCE_URL . $paramStr;
+        $url = self::API_V3_URL . self::DISTANCE_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($data);
             $url .= '&sig=' . $sign;
@@ -330,8 +383,7 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -349,8 +401,8 @@ class amap
      *            'keywords'=>'', //查询关键字,只支持单个关键词，可用政区名称、citycode、adcode
      *            'subdistrict'=>1, //子级行政区，0：不返回下级行政区；1：返回下一级行政区；并以此类推
      *            //行政区级别包括：国家、省/直辖市、市、区/县、商圈、街道多级数据，其中街道数据仅在keywords为区/县、商圈的时候显示
-     *            'showbiz'=>true, //是否显示商圈，可选为true/false
      *            'page'=>1, //需要第几页数据，最外层的districts最多会返回20个数据
+     *            'offset'=>20,//最外层返回数据个数
      *            'extensions'=>'base', //此项控制行政区信息中返回行政区边界坐标点；
      *            //base:不返回行政区边界坐标点；all:只返回当前查询district的边界值，不返回子节点的边界值；
      *            'filter'=>'', //根据区划过滤，填入后只返回该省/直辖市信息，填入adcode
@@ -361,9 +413,9 @@ class amap
     {
         $ops['key'] = $this->key;
         $ops['output'] = 'json';
-        $this->dealOps($ops, 'showbiz');
+        unset($ops['callback']);
         $paramStr = http_build_query($ops);
-        $url = self::API_URL . self::DISTRICT_URL . $paramStr;
+        $url = self::API_V3_URL . self::DISTRICT_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($ops);
             $url .= '&sig=' . $sign;
@@ -371,8 +423,7 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -408,6 +459,7 @@ class amap
     {
         $ops['key'] = $this->key;
         $ops['output'] = 'json';
+        unset($ops['callback']);
         $this->dealOps($ops, 'citylimit');
         if ($keywords != '') {
             $ops['keywords'] = $keywords;
@@ -416,7 +468,7 @@ class amap
             $ops['types'] = $types;
         }
         $paramStr = http_build_query($ops);
-        $url = self::API_URL . self::TEXT_SEARCH_URL . $paramStr;
+        $url = self::API_V3_URL . self::TEXT_SEARCH_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($ops);
             $url .= '&sig=' . $sign;
@@ -424,8 +476,7 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -458,8 +509,9 @@ class amap
         $ops['key'] = $this->key;
         $ops['location'] = $location;
         $ops['output'] = 'json';
+        unset($ops['callback']);
         $paramStr = http_build_query($ops);
-        $url = self::API_URL . self::AROUND_SEARCH_URL . $paramStr;
+        $url = self::API_V3_URL . self::AROUND_SEARCH_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($ops);
             $url .= '&sig=' . $sign;
@@ -467,8 +519,7 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -499,7 +550,7 @@ class amap
         $ops['polygon'] = $polygon;
         $ops['output'] = 'json';
         $paramStr = http_build_query($ops);
-        $url = self::API_URL . self::POLYGON_SEARCH_URL . $paramStr;
+        $url = self::API_V3_URL . self::POLYGON_SEARCH_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($ops);
             $url .= '&sig=' . $sign;
@@ -507,8 +558,7 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -529,7 +579,7 @@ class amap
         $data['key'] = $this->key;
         $data['id'] = $id;
         $paramStr = http_build_query($data);
-        $url = self::API_URL . self::ID_SRARCH_URL . $paramStr;
+        $url = self::API_V3_URL . self::ID_SRARCH_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($data);
             $url .= '&sig=' . $sign;
@@ -537,8 +587,7 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -563,7 +612,7 @@ class amap
             $data['ip'] = $ip;
         }
         $paramStr = http_build_query($data);
-        $url = self::API_URL . self::IP_URL . $paramStr;
+        $url = self::API_V3_URL . self::IP_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($data);
             $url .= '&sig=' . $sign;
@@ -571,7 +620,7 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
+            if (!$json || $json['status'] == 0) {
                 $this->errCode = $json['infocode'];
                 $this->errMsg = $json['info'];
                 return false;
@@ -606,14 +655,14 @@ class amap
     {
         $data = array(
             'key' => $this->key,
-            'carid' => substr($this->key, - 4) . $carid,
+            'carid' => substr($this->key, -4) . $carid,
             'locations' => $locations,
             'time' => $time,
             'direction' => $direction,
             'speed' => $speed
         );
         $paramStr = http_build_query($data);
-        $url = self::API_URL . self::GRASP_URL . $paramStr;
+        $url = self::API_V3_URL . self::GRASP_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($data);
             $url .= '&sig=' . $sign;
@@ -621,8 +670,7 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -651,7 +699,7 @@ class amap
             'coordsys' => $coordsys
         );
         $paramStr = http_build_query($data);
-        $url = self::API_URL . self::CONVERT_URL . $paramStr;
+        $url = self::API_V3_URL . self::CONVERT_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($data);
             $url .= '&sig=' . $sign;
@@ -659,8 +707,7 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -687,7 +734,7 @@ class amap
             'output' => 'json'
         );
         $paramStr = http_build_query($data);
-        $url = self::API_URL . self::WEATHER_URL . $paramStr;
+        $url = self::API_V3_URL . self::WEATHER_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($data);
             $url .= '&sig=' . $sign;
@@ -695,8 +742,7 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -721,14 +767,14 @@ class amap
      *            ]
      * @return boolean|array 成功返回结果数组，内容参考http://lbs.amap.com/api/webservice/guide/api/inputtips#inputtips
      */
-    public function inputtips($keywords, $ops)
+    public function inputtips($keywords, $ops = [])
     {
         $ops['key'] = $this->key;
         $ops['keywords'] = $keywords;
         $ops['output'] = 'json';
         $this->dealOps($ops, 'citylimit');
         $paramStr = http_build_query($ops);
-        $url = self::API_URL . self::INPUT_TIPS_URL . $paramStr;
+        $url = self::API_V3_URL . self::INPUT_TIPS_URL . $paramStr;
         if ($this->sign) {
             $sign = $this->signature($ops);
             $url .= '&sig=' . $sign;
@@ -736,8 +782,257 @@ class amap
         $result = $this->http_get($url);
         if ($result) {
             $json = json_decode($result, true);
-            if (! $json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
+            if (!$json || $json['status'] == 0) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 调用云图接口创建表
+     *
+     * @param string $name
+     *            表名,最长50字符
+     * @return boolean|string 成功返回tableid,失败返回false
+     */
+    public function tableCreate($name)
+    {
+        $ops['key'] = $this->key;
+        if (mb_strlen($name) > 50) {
+            $this->errMsg = '表名不能超过50字符';
+            return false;
+        }
+        $ops['name'] = $name;
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $result = $this->http_post(self::YUNTU_API_V3_URL . self::YUNTU_CREATE_TABLE_URL, $ops);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] !== 1) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json['tableid'];
+        }
+        return false;
+    }
+
+    /**
+     * 设置tableid，供接下来调用云图api使用
+     *
+     * @param $tableid
+     * @return $this
+     */
+    public function setTableid($tableid)
+    {
+        $this->tableid = $tableid;
+        return $this;
+    }
+
+    /**
+     * 向指定tableid的数据表中插入一条新数据。
+     *
+     * @param array $data 新增的数据
+     *                      [
+     *                          '_name'=>'',//数据名称，必填
+     *                          '_location'=>'',//坐标，经度在前，纬度在后，当loctype=1时必填
+     *                          'coordtype'=>'',//坐标类型，可选值1gps，2autonavi，3baidu，此参数可选，默认autonavi
+     *                          '_address'=>'',//地址，当loctype=2时必填
+     *                      ]
+     * @param int $loctype 定位方式，1经纬度，2地址
+     * @return bool|string 成功返回创建的数据id，失败返回false
+     */
+    public function dataCreate($data, $loctype = 1)
+    {
+        if (empty($this->tableid)) {
+            $this->errMsg = '请先设置tableid';
+            return false;
+        }
+        $ops['key'] = $this->key;
+        $ops['tableid'] = $this->tableid;
+        $ops['loctype'] = $loctype;
+        if ($loctype == 1) {
+            if (empty($data['_location'])) {
+                $this->errMsg = '当loctype=1时，_location必填';
+                return false;
+            }
+        } else {
+            if (empty($data['_address'])) {
+                $this->errMsg = '当loctype=2时，_address必填';
+                return false;
+            }
+        }
+        $ops['data'] = json_encode($data);
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $result = $this->http_post(self::YUNTU_API_V3_URL . self::YUNTU_CREATE_DATA_URL, $ops);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] !== 1) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json['_id'];
+        }
+        return false;
+    }
+
+    /**
+     * 向指定tableid的数据表中通过上传文件的方式创建多条数据。
+     *
+     * @param string $file 新增的数据文件名，csv文件
+     * @param string $_name 文件中代表”名称”的字段
+     * @param array $ops 可选参数
+     * [
+     *     'loctype'=>'',//定位方式，1经纬度，2地址，默认为1
+     *     '_address'=>'',//文件中代表”地址”的字段，当loctype=2时，必填
+     *     'longitude'=>'',//文件中代表”经度”的字段，当loctype=1时，必填
+     *     'latitude'=>'',//文件中代表”纬度”的字段，当loctype=1时，必填
+     *     'coordtype'=>''//坐标类型，
+     * ]
+     * @return bool|string 成功返回任务id，失败返回false
+     */
+    public function dataBatchCreate($file, $_name, $ops = [])
+    {
+        if (empty($this->tableid)) {
+            $this->errMsg = '请先设置tableid';
+            return false;
+        }
+        if (!empty($ops['loctype']) && $ops['loctype'] == 2) {
+            if (empty($ops['_address'])) {
+                $this->errMsg = '当loctype=2时，_address必填';
+                return false;
+            }
+        } else {
+            if (empty($ops['longitude'])) {
+                $this->errMsg = '当loctype=1时，longitude必填';
+                return false;
+            }
+            if (empty($ops['latitude'])) {
+                $this->errMsg = '当loctype=1时，latitude必填';
+                return false;
+            }
+        }
+        $ops['key'] = $this->key;
+        $ops['tableid'] = $this->tableid;
+        $ops['file'] = new \CURLFile(realpath($file));
+        $ops['_name'] = $_name;
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $result = $this->http_post(self::YUNTU_API_V3_URL . self::YUNTU_BATCH_CREATE_DATA_URL, $ops, true);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] !== 1) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json['batchid'];
+        }
+        return false;
+    }
+
+    /**
+     * 更新指定tableid，指定一条数据序列号_id的数据信息。
+     *
+     * @param array $data 新增的数据
+     * @param int $loctype 定位方式，1经纬度，2地址，默认为1
+     * @return bool 操作成功或失败
+     */
+    public function dataUpdate($data, $loctype = 1)
+    {
+        if (empty($this->tableid)) {
+            $this->errMsg = '请先设置tableid';
+            return false;
+        }
+        $ops['key'] = $this->key;
+        $ops['tableid'] = $this->tableid;
+        $ops['loctype'] = $loctype;
+        if (empty($data['_id'])) {
+            $this->errMsg = '数据id不能为空';
+            return false;
+        }
+        $ops['data'] = json_encode($data);
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $result = $this->http_post(self::YUNTU_API_V3_URL . self::YUNTU_UPDATE_DATA_URL, $ops, true);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] !== 1) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 删除指定tableid的数据表中的数据，一次请求限制删除1-50条数据。
+     *
+     * @param string|array $ids 删除的数据_id，多个id用逗号分割或传入数组，单次限制50条以内
+     * @return bool|array 成功返回数组
+     */
+    public function dataDelete($ids)
+    {
+        if (empty($this->tableid)) {
+            $this->errMsg = '请先设置tableid';
+            return false;
+        }
+        $ops['key'] = $this->key;
+        $ops['tableid'] = $this->tableid;
+        if (is_string($ids)) {
+            $ids = explode(',', $ids);
+        }
+        if (count($ids) > 50) {
+            $this->errMsg = '不能超过50个id';
+            return false;
+        }
+        $ops['ids'] = implode(',', $ids);
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $result = $this->http_post(self::YUNTU_API_V3_URL . self::YUNTU_DELETE_DATA_URL, $ops, true);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] !== 1) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 批量处理管理接口为用户提供查看批处理的进度和结果信息。
+     * @param string $batchid 批量处理任务唯一标识
+     * @return bool|array 成功返回数组
+     */
+    public function importStatus($batchid)
+    {
+        if (empty($this->tableid)) {
+            $this->errMsg = '请先设置tableid';
+            return false;
+        }
+        $ops['key'] = $this->key;
+        $ops['batchid'] = $batchid;
+        $paramStr = http_build_query($ops);
+        $url = self::YUNTU_API_V3_URL . self::YUNTU_IMPORT_STATUS_URL . $paramStr;
+        if ($this->sign) {
+            $sign = $this->signature($ops);
+            $url .= '&sig=' . $sign;
+        }
+        $result = $this->http_get($url);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] == 0) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -749,7 +1044,7 @@ class amap
     /**
      * 数字签名算法
      *
-     * @param array $data            
+     * @param array $data
      * @return string
      */
     private function signature($data = [])
@@ -764,7 +1059,8 @@ class amap
     /**
      * GET 请求
      *
-     * @param string $url            
+     * @param $url
+     * @return bool|mixed
      */
     private function http_get($url)
     {
@@ -787,10 +1083,46 @@ class amap
     }
 
     /**
+     * POST 请求
+     *
+     * @param string $url
+     * @param array|string $param
+     * @param boolean $post_file
+     *            是否文件上传
+     * @return string content
+     */
+    private function http_post($url, $param, $post_file = false)
+    {
+        $oCurl = curl_init();
+        if (stripos($url, "https://") !== FALSE) {
+            curl_setopt($oCurl, CURLOPT_SSL_VERIFYPEER, FALSE);
+            curl_setopt($oCurl, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($oCurl, CURLOPT_SSLVERSION, 1); // CURL_SSLVERSION_TLSv1
+        }
+        if (!(is_string($param) || $post_file)) {
+            $strPOST = http_build_query($param);
+        } else {
+            $strPOST = $param;
+        }
+        curl_setopt($oCurl, CURLOPT_URL, $url);
+        curl_setopt($oCurl, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($oCurl, CURLOPT_POST, true);
+        curl_setopt($oCurl, CURLOPT_POSTFIELDS, $strPOST);
+        $sContent = curl_exec($oCurl);
+        $aStatus = curl_getinfo($oCurl);
+        curl_close($oCurl);
+        if (intval($aStatus["http_code"]) == 200) {
+            return $sContent;
+        } else {
+            return false;
+        }
+    }
+
+    /**
      * 将数组中boolean类型值转为string
      *
-     * @param array $array            
-     * @param string $key            
+     * @param array $array
+     * @param string $key
      */
     private function dealOps(&$array, $key)
     {
