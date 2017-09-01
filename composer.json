@@ -1,10 +1,11 @@
 {
-  "name" : "lvzhao1995/AmapSdk",
+  "name" : "lvzhao1995/amap-sdk",
   "description": "高德地图SDK",
   "keywords": [
       "amap",
       "gaode",
-      "gaode-sdk"
+      "gaode-sdk",
+      "amapsdk"
   ],
   "authors" : [ {
     "name" : "lvzhao1995",
