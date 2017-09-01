@@ -17,7 +17,7 @@ namespace Amap;
  */
 
 // TODO 静态地图没有实现
-class amap
+class Amap
 {
 
     const API_V3_URL = 'http://restapi.amap.com/v3';
