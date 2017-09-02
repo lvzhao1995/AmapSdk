@@ -7,7 +7,7 @@ namespace Amap;
  *
  * @author lvzhao1995<abc-1.2@qq.com>
  * @link https://github.com/lvzhao1995/AmapSdk
- * @version 0.1
+ * @version 0.1.2
  *          usage:
  *          $options = [
  *          'sign'=>false, //是否进行数字签名，可选
@@ -16,7 +16,6 @@ namespace Amap;
  *          ];
  */
 
-// TODO 静态地图没有实现
 class Amap
 {
 
@@ -50,6 +49,8 @@ class Amap
 
     const IP_URL = '/ip?';
 
+    const STATIC_MAP_URL = '/staticmap?';
+
     const GRASP_URL = '/autograsp?';
 
     const CONVERT_URL = '/assistant/coordinate/convert?';
@@ -57,6 +58,12 @@ class Amap
     const WEATHER_URL = '/weather/weatherInfo?';
 
     const INPUT_TIPS_URL = '/assistant/inputtips?';
+
+    const RECTANGLE_TRAFFIC_URL = '/traffic/status/rectangle?';
+
+    const CIRCLE_TRAFFIC_URL = '/traffic/status/circle?';
+
+    const ROAD_TRAFFIC_URL = '/traffic/status/road?';
 
     const YUNTU_API_V3_URL = 'http://yuntuapi.amap.com';
 
@@ -78,7 +85,7 @@ class Amap
 
     private $key;
 
-    public $errCode=0;
+    public $errCode = 0;
 
     public $errMsg;
 
@@ -124,15 +131,14 @@ class Amap
             'key' => $this->key,
             'address' => $address
         ];
-        if ($city != '')
+        if (!empty($city)) {
             $data['city'] = $city;
-        $paramStr = http_build_query($data);
-        $url = self::API_V3_URL . self::GEO_URL . $paramStr;
-        if ($this->sign) {
-            $sign = $this->signature($data);
-            $url .= '&sig=' . $sign;
         }
-        $result = $this->http_get($url);
+        $url = self::API_V3_URL . self::GEO_URL;
+        if ($this->sign) {
+            $data['sig'] = $this->signature($data);
+        }
+        $result = $this->http_get($url, $data);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -164,18 +170,24 @@ class Amap
      */
     public function regeo($location, $ops = [])
     {
+        $default = [
+            'poitype' => '',
+            'radius' => '',
+            'extensions' => '',
+            'batch' => '',
+            'roadlevel' => '',
+            'homeorcorp' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
         $ops['key'] = $this->key;
         $this->dealOps($ops, 'batch');
         $ops['location'] = $location;
-        $ops['output'] = 'json';
-        unset($ops['callback']);
-        $paramStr = http_build_query($ops);
-        $url = self::API_V3_URL . self::REGEO_URL . $paramStr;
+        $url = self::API_V3_URL . self::REGEO_URL;
         if ($this->sign) {
-            $sign = $this->signature($ops);
-            $url .= '&sig=' . $sign;
+            $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $ops);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -203,13 +215,12 @@ class Amap
             'origin' => $origin,
             'destination' => $destination
         ];
-        $paramStr = http_build_query($data);
-        $url = self::API_V3_URL . self::WALK_URL . $paramStr;
+
+        $url = self::API_V3_URL . self::WALK_URL;
         if ($this->sign) {
-            $sign = $this->signature($data);
-            $url .= '&sig=' . $sign;
+            $data['sig'] = $this->signature($data);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $data);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -244,19 +255,26 @@ class Amap
      */
     public function bus($origin, $destination, $city, $ops = [])
     {
+        $default = [
+            'cityd' => '',
+            'extensions' => '',
+            'strategy' => '',
+            'nightflag' => '',
+            'date' => '',
+            'time' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
         $ops['key'] = $this->key;
         $ops['origin'] = $origin;
         $ops['destination'] = $destination;
         $ops['city'] = $city;
-        $ops['output'] = 'json';
-        unset($ops['callback']);
-        $paramStr = http_build_query($ops);
-        $url = self::API_V3_URL . self::BUS_URL . $paramStr;
+
+        $url = self::API_V3_URL . self::BUS_URL;
         if ($this->sign) {
-            $sign = $this->signature($ops);
-            $url .= '&sig=' . $sign;
+            $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $ops);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -280,6 +298,8 @@ class Amap
      *            [
      *            'originid'=>'', //无默认值，出发点poiid
      *            'destinationid'=>'', //无默认值，目的地poiid
+     *            'origintype'=>'',//无默认值，起点poi类别
+     *            'destinationtype'=>'',//无默认值，终点poi类别
      *            'strategy'=>0, //驾车选择策略。
      *            0速度优先（时间），1费用优先（不走收费路段的最快道路），
      *            2距离优先，3不走快速路，4躲避拥堵，
@@ -295,21 +315,32 @@ class Amap
      */
     public function drive($origin, $destination, $ops = [])
     {
+        $default = [
+            'originid' => '',
+            'destinationid' => '',
+            'origintype' => '',
+            'destinationtype' => '',
+            'strategy' => '',
+            'waypoints' => '',
+            'avoidpolygons' => '',
+            'avoidroad' => '',
+            'province' => '',
+            'number' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
         $ops['key'] = $this->key;
         $ops['origin'] = $origin;
         $ops['destination'] = $destination;
-        $ops['output'] = 'json';
         if (isset($ops['number'])) {
             $ops['number'] = strtoupper($ops['number']);
         }
-        unset($ops['callback']);
-        $paramStr = http_build_query($ops);
-        $url = self::API_V3_URL . self::DRIVE_URL . $paramStr;
+
+        $url = self::API_V3_URL . self::DRIVE_URL;
         if ($this->sign) {
-            $sign = $this->signature($ops);
-            $url .= '&sig=' . $sign;
+            $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $ops);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -332,18 +363,17 @@ class Amap
      */
     public function bicycling($origin, $destination)
     {
-        $ops=[
-            'key'=>$this->key,
-            'origin'=>$origin,
-            'destination'=>$destination
+        $ops = [
+            'key' => $this->key,
+            'origin' => $origin,
+            'destination' => $destination
         ];
-        $paramStr = http_build_query($ops);
-        $url = self::API_V4_URL . self::BICYCLING_URL . $paramStr;
+
+        $url = self::API_V4_URL . self::BICYCLING_URL;
         if ($this->sign) {
-            $sign = $this->signature($ops);
-            $url .= '&sig=' . $sign;
+            $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $ops);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['errcode'] != 0) {
@@ -374,13 +404,11 @@ class Amap
             'destination' => $destination,
             'type' => $type
         ];
-        $paramStr = http_build_query($data);
-        $url = self::API_V3_URL . self::DISTANCE_URL . $paramStr;
+        $url = self::API_V3_URL . self::DISTANCE_URL;
         if ($this->sign) {
-            $sign = $this->signature($data);
-            $url .= '&sig=' . $sign;
+            $data['sig'] = $this->signature($data);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $data);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -411,16 +439,23 @@ class Amap
      */
     public function district($ops = [])
     {
+        $default = [
+            'keywords' => '',
+            'subdistrict' => '',
+            'page' => '',
+            'offset' => '',
+            'extensions' => '',
+            'filter' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
         $ops['key'] = $this->key;
-        $ops['output'] = 'json';
-        unset($ops['callback']);
-        $paramStr = http_build_query($ops);
-        $url = self::API_V3_URL . self::DISTRICT_URL . $paramStr;
+
+        $url = self::API_V3_URL . self::DISTRICT_URL;
         if ($this->sign) {
-            $sign = $this->signature($ops);
-            $url .= '&sig=' . $sign;
+            $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $ops);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -457,23 +492,36 @@ class Amap
      */
     public function textSearch($keywords = '', $types = '', $ops = [])
     {
+        $default = [
+            'city' => '',
+            'citylimit' => '',
+            'children' => '',
+            'offset' => '',
+            'page' => '',
+            'building' => '',
+            'floor' => '',
+            'extensions' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+        if (empty($keywords) && empty($types)) {
+            $this->errMsg = 'keywords和types两者至少必选其一';
+            return false;
+        }
+
         $ops['key'] = $this->key;
-        $ops['output'] = 'json';
-        unset($ops['callback']);
         $this->dealOps($ops, 'citylimit');
-        if ($keywords != '') {
+        if (!empty($keywords)) {
             $ops['keywords'] = $keywords;
         }
-        if ($types != '') {
+        if (!empty($types)) {
             $ops['types'] = $types;
         }
-        $paramStr = http_build_query($ops);
-        $url = self::API_V3_URL . self::TEXT_SEARCH_URL . $paramStr;
+
+        $url = self::API_V3_URL . self::TEXT_SEARCH_URL;
         if ($this->sign) {
-            $sign = $this->signature($ops);
-            $url .= '&sig=' . $sign;
+            $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $ops);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -506,17 +554,26 @@ class Amap
      */
     public function aroundSearch($location, $ops = [])
     {
+        $default = [
+            'keywords' => '',
+            'types' => '',
+            'city' => '',
+            'radius' => '',
+            'sortrule' => '',
+            'offset' => '',
+            'page' => '',
+            'extensions' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
         $ops['key'] = $this->key;
         $ops['location'] = $location;
-        $ops['output'] = 'json';
-        unset($ops['callback']);
-        $paramStr = http_build_query($ops);
-        $url = self::API_V3_URL . self::AROUND_SEARCH_URL . $paramStr;
+
+        $url = self::API_V3_URL . self::AROUND_SEARCH_URL;
         if ($this->sign) {
-            $sign = $this->signature($ops);
-            $url .= '&sig=' . $sign;
+            $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $ops);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -546,16 +603,22 @@ class Amap
      */
     public function polygon($polygon, $ops = [])
     {
+        $default = [
+            'keywords' => '',
+            'types' => '',
+            'offset' => '',
+            'page' => '',
+            'extensions' => 'base'
+        ];
+        $ops = array_intersect_key($ops, $default);
+
         $ops['key'] = $this->key;
         $ops['polygon'] = $polygon;
-        $ops['output'] = 'json';
-        $paramStr = http_build_query($ops);
-        $url = self::API_V3_URL . self::POLYGON_SEARCH_URL . $paramStr;
+        $url = self::API_V3_URL . self::POLYGON_SEARCH_URL;
         if ($this->sign) {
-            $sign = $this->signature($ops);
-            $url .= '&sig=' . $sign;
+            $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $ops);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -576,15 +639,16 @@ class Amap
      */
     public function idSearch($id)
     {
-        $data['key'] = $this->key;
-        $data['id'] = $id;
-        $paramStr = http_build_query($data);
-        $url = self::API_V3_URL . self::ID_SRARCH_URL . $paramStr;
+        $data = [
+            'key' => $this->key,
+            'id' => $id
+        ];
+
+        $url = self::API_V3_URL . self::ID_SRARCH_URL;
         if ($this->sign) {
-            $sign = $this->signature($data);
-            $url .= '&sig=' . $sign;
+            $data['sig'] = $this->signature($data);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $data);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -608,20 +672,17 @@ class Amap
     public function ip($ip = '', $all = false)
     {
         $data['key'] = $this->key;
-        if ($ip != '') {
+        if (!empty($ip)) {
             $data['ip'] = $ip;
         }
-        $paramStr = http_build_query($data);
-        $url = self::API_V3_URL . self::IP_URL . $paramStr;
+        $url = self::API_V3_URL . self::IP_URL;
         if ($this->sign) {
-            $sign = $this->signature($data);
-            $url .= '&sig=' . $sign;
+            $data['sig'] = $this->signature($data);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $data);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
-                $this->errCode = $json['infocode'];
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -653,21 +714,19 @@ class Amap
      */
     public function autograsp($carid, $locations, $time, $direction, $speed)
     {
-        $data = array(
+        $data = [
             'key' => $this->key,
             'carid' => substr($this->key, -4) . $carid,
             'locations' => $locations,
             'time' => $time,
             'direction' => $direction,
             'speed' => $speed
-        );
-        $paramStr = http_build_query($data);
-        $url = self::API_V3_URL . self::GRASP_URL . $paramStr;
+        ];
+        $url = self::API_V3_URL . self::GRASP_URL;
         if ($this->sign) {
-            $sign = $this->signature($data);
-            $url .= '&sig=' . $sign;
+            $data['sig'] = $this->signature($data);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $data);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -675,6 +734,157 @@ class Amap
                 return false;
             }
             return $json;
+        }
+        return false;
+    }
+
+    private function dealMarker($markers)
+    {
+        $array = [];
+        foreach ($markers as $v) {
+            $style = [
+                'size' => $v['style']['size'] ?: '',
+                'color' => $v['style']['color'] ?: '',
+                'label' => $v['style']['label'] ?: ''
+            ];
+            $style = implode(',', $style);
+            $tmp = $v;
+            unset($tmp['style']);
+            $array[] = $style . ':' . implode(';', $tmp);
+        }
+        return implode('|', $array);
+    }
+
+    private function dealLabels($labels)
+    {
+        $array = [];
+        foreach ($labels as $v) {
+            $style = [
+                'content' => $v['style']['content'] ?: '',
+                'font' => $v['style']['font'] ?: '',
+                'bold' => $v['style']['bold'] ?: '',
+                'fontSize' => $v['style']['fontSize'] ?: '',
+                'fontColor' => $v['style']['fontColor'] ?: '',
+                'background' => $v['style']['background'] ?: ''
+            ];
+            $style = implode(',', $style);
+            $tmp = $v;
+            unset($tmp['style']);
+            $array[] = $style . ':' . implode(';', $tmp);
+        }
+        return implode('|', $array);
+    }
+
+    private function dealPaths($paths)
+    {
+        $array = [];
+        foreach ($paths as $v) {
+            $style = [
+                'weight' => $v['style']['weight'] ?: '',
+                'color' => $v['style']['color'] ?: '',
+                'transparency' => $v['style']['transparency'] ?: '',
+                'fillcolor' => $v['style']['fillcolor'] ?: '',
+                'fillTransparency' => $v['style']['fillTransparency'] ?: ''
+            ];
+            $style = implode(',', $style);
+            $tmp = $v;
+            unset($tmp['style']);
+            $array[] = $style . ':' . implode(';', $tmp);
+        }
+        return implode('|', $array);
+    }
+
+    /**
+     * @param array $ops 参数
+     *  [
+     * 'location' => '',//地图中心点
+     * 'zoom' => '',//地图级别[1,17]
+     * 'size' => '',//地图大小,最大1024*1024，默认400*400
+     * 'scale' => '',//1普通，2高清，默认1
+     * 'markers' => [//标注
+     *      [
+     *          'style'=>[
+     *              'size'=>'',//标注点大小，可选值small，mid，large，默认small，如果用自定义图片填写-1
+     *              'color'=>'',//标注点颜色，16进制颜色代码，例如0x000000,如果用自定义图片填写图片url
+     *              'label'=>''[0-9]、[A-Z]、[单个中文字] 当size为small时，图片不展现标注名。如果用自定义图片填写0
+     *          ],
+     *          '',//标注点坐标1
+     *          '',//标注点坐标2
+     *          ...//当前样式下更多标注
+     *      ]//更多标注样式继续添加数组
+     * ],
+     * 'labels' => [//标签
+     *      [
+     *          'style'=>[
+     *              'content'=>'',//标签内容，最大15字符
+     *              'font'=>'',//字体，0微软雅黑，1宋体，2Times New Roman，3Helvetica，默认0
+     *              'bold'=>'',//0非粗体，1粗体，默认0
+     *              'fontSize'=>'',//字体大小，可选值[1,72]，默认10
+     *              'fontColor'=>'',//字体颜色，默认0xffffff
+     *              'background'=>''//背景色，默认0x5288d8
+     *          ],
+     *          '',//标签坐标1
+     *          '',//标签坐标2
+     *          ...//当前样式下更多标签
+     *      ]//更多标签样式继续添加数组
+     * ],
+     * 'paths' => [//线条
+     *      [
+     *          'style'=>[
+     *              'weight'=>'',//线条粗细，可选值[2,15]，默认5
+     *              'color'=>'',//线条颜色，默认值0x0000ff
+     *              'transparency'=>'',//透明度，可选值[0,1],小数点后最多2位，默认为1
+     *              'fillcolor'=>'',//多边形填充颜色，不为空时折线封闭为多边形
+     *              'fillTransparency'=>''//填充面透明度，默认0.5
+     *          ],
+     *          '',//折线点坐标
+     *          '',//折线点坐标
+     *          ...//继续添加，所有坐标连成折线或多边形
+     *      ]//更多折线继续添加数组
+     * ],
+     * 'traffic' => ''//交通路况标识，0不展现，1展现，默认为0
+     * ]
+     * @param bool $url 是否返回url，true返回构造好的url，false返回图片二进制内容
+     * @return bool|mixed|string
+     */
+    public function staticmap($ops = [], $url = false)
+    {
+        $default = [
+            'location' => '',
+            'zoom' => '',
+            'size' => '',
+            'scale' => '',
+            'markers' => '',
+            'labels' => '',
+            'paths' => '',
+            'traffic' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+        empty($ops['markers']) and $ops['markers'] = $this->dealMarker($ops['markers']);
+        empty($ops['labels']) and $ops['labels'] = $this->dealLabels($ops['labels']);
+        empty($ops['paths']) and $ops['paths'] = $this->dealPaths($ops['paths']);
+        if (empty($ops['markers']) && empty($ops['labels']) && empty($ops['paths']) && (empty($ops['location']) || empty($ops['zoom']))) {
+            $this->errMsg = '没有标注/标签/折线等覆盖物时，中心点（location）和地图级别（zoom）必填';
+            return false;
+        }
+
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        if ($url) {
+            $ops = array_filter($ops);
+            return $url . http_build_query($ops);
+        }
+        $url = self::API_V3_URL . self::STATIC_MAP_URL;
+        $result = $this->http_get($url, $ops);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!is_array($json)) {
+                return $result;
+            } elseif ($json['status'] == 0) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
         }
         return false;
     }
@@ -693,18 +903,16 @@ class Amap
         if ($coordsys == 'autonavi') {
             return $locations;
         }
-        $data = array(
+        $data = [
             'key' => $this->key,
             'locations' => $locations,
             'coordsys' => $coordsys
-        );
-        $paramStr = http_build_query($data);
-        $url = self::API_V3_URL . self::CONVERT_URL . $paramStr;
+        ];
+        $url = self::API_V3_URL . self::CONVERT_URL;
         if ($this->sign) {
-            $sign = $this->signature($data);
-            $url .= '&sig=' . $sign;
+            $data['sig'] = $this->signature($data);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $data);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -727,19 +935,17 @@ class Amap
      */
     public function weather($city, $extensions = 'base')
     {
-        $data = array(
+        $data = [
             'key' => $this->key,
             'city' => $city,
             'extensions' => $extensions,
             'output' => 'json'
-        );
-        $paramStr = http_build_query($data);
-        $url = self::API_V3_URL . self::WEATHER_URL . $paramStr;
+        ];
+        $url = self::API_V3_URL . self::WEATHER_URL;
         if ($this->sign) {
-            $sign = $this->signature($data);
-            $url .= '&sig=' . $sign;
+            $data['sig'] = $this->signature($data);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $data);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -765,21 +971,159 @@ class Amap
      *            'citylimit'=>false, //仅返回指定城市数据，可选值true/false
      *            'datatype'=>'all', //可选值：all-返回所有数据类型、poi-返回POI数据类型、bus-返回公交站点数据类型、busline-返回公交线路数据类型
      *            ]
-     * @return boolean|array 成功返回结果数组，内容参考http://lbs.amap.com/api/webservice/guide/api/inputtips#inputtips
+     * @return boolean|array 成功返回结果数组，内容参考 http://lbs.amap.com/api/webservice/guide/api/inputtips#inputtips
      */
     public function inputtips($keywords, $ops = [])
     {
+        $default = [
+            'type' => '',
+            'location' => '',
+            'city' => '',
+            'citylimit' => '',
+            'datatype' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
         $ops['key'] = $this->key;
         $ops['keywords'] = $keywords;
-        $ops['output'] = 'json';
         $this->dealOps($ops, 'citylimit');
-        $paramStr = http_build_query($ops);
-        $url = self::API_V3_URL . self::INPUT_TIPS_URL . $paramStr;
+        $url = self::API_V3_URL . self::INPUT_TIPS_URL;
         if ($this->sign) {
-            $sign = $this->signature($ops);
-            $url .= '&sig=' . $sign;
+            $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $ops);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] == 0) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 矩形区域交通态势
+     *
+     * @param string|array $rectangle 代表此为矩形区域查询,分号分割的坐标对或坐标数组
+     * @param array $ops 参数数组
+     * [
+     *      'level'=>'',//道路等级，1高速，2城市快速路、国道，3高速辅路，4主要道路，5一般道路，6无名道路，默认5
+     *      'extensions'=>''//返回结果控制，可选值base,all，默认base
+     * ]
+     * @return bool|array 成功返回结果数组，内容参考 http://lbs.amap.com/api/webservice/guide/api/trafficstatus#rectangle
+     */
+    public function rectangleTraffic($rectangle, $ops = [])
+    {
+        $default = [
+            'level' => '',
+            'extensions' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
+        if (is_string($rectangle)) {
+            $rectangle = explode(';', $rectangle);
+        }
+        if (count($rectangle) != 2) {
+            $this->errMsg = '只能有两个坐标对';
+            return false;
+        }
+        $rectangle = implode(';', $rectangle);
+
+        $ops['key'] = $this->key;
+        $ops['rectangle'] = $rectangle;
+
+        $url = self::API_V3_URL . self::RECTANGLE_TRAFFIC_URL;
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $result = $this->http_get($url, $ops);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] == 0) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 圆形区域交通态势
+     * @param string $location 中心点坐标
+     * @param array $ops 参数数组
+     * [
+     *      'level'=>'',//道路等级，1高速，2城市快速路、国道，3高速辅路，4主要道路，5一般道路，6无名道路，默认5
+     *      'extensions'=>'',//返回结果控制，可选值base,all，默认base
+     *      'radius'=>''//半径，单位米，最大5000米，默认1000米
+     * ]
+     * @return bool|array 成功返回结果数组，内容参考 http://lbs.amap.com/api/webservice/guide/api/trafficstatus#circle
+     */
+    public function circleTraffic($location, $ops = [])
+    {
+        $default = [
+            'level' => '',
+            'extensions' => '',
+            'radius'=>''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
+        $ops['key'] = $this->key;
+        $ops['location'] = $location;
+
+        $url = self::API_V3_URL . self::CIRCLE_TRAFFIC_URL;
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $result = $this->http_get($url, $ops);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] == 0) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 指定线路交通态势
+     * @param string $name 道路名
+     * @param string $adcode 城市编码，推荐使用此字段，不使用city，city和adcode必填一个
+     * @param string $city city和adcode必填一个
+     * @param array $ops 参数数组
+     * [
+     *      'level'=>'',//道路等级，1高速，2城市快速路、国道，3高速辅路，4主要道路，5一般道路，6无名道路，默认5
+     *      'extensions'=>'',//返回结果控制，可选值base,all，默认base
+     * ]
+     * @return bool|array 成功返回结果数组，内容参考 http://lbs.amap.com/api/webservice/guide/api/trafficstatus#road
+     */
+    public function roadTraffic($name,$adcode='',$city='', $ops = [])
+    {
+        $default = [
+            'level' => '',
+            'extensions' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
+        if(empty($adcode) && empty($city)){
+            $this->errMsg='city和adcode必填一个';
+            return false;
+        }
+
+        $ops['key'] = $this->key;
+        $ops['name'] = $name;
+        $ops['adcode']=$adcode;
+        $ops['city']=$city;
+
+        $url = self::API_V3_URL . self::CIRCLE_TRAFFIC_URL;
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $result = $this->http_get($url, $ops);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -1023,13 +1367,11 @@ class Amap
         }
         $ops['key'] = $this->key;
         $ops['batchid'] = $batchid;
-        $paramStr = http_build_query($ops);
-        $url = self::YUNTU_API_V3_URL . self::YUNTU_IMPORT_STATUS_URL . $paramStr;
+        $url = self::YUNTU_API_V3_URL . self::YUNTU_IMPORT_STATUS_URL;
         if ($this->sign) {
-            $sign = $this->signature($ops);
-            $url .= '&sig=' . $sign;
+            $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_get($url);
+        $result = $this->http_get($url, $ops);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] == 0) {
@@ -1057,13 +1399,15 @@ class Amap
     }
 
     /**
-     * GET 请求
-     *
      * @param $url
+     * @param array $params 参数数组，自动剔除空值参数，数组为空时不处理
      * @return bool|mixed
      */
-    private function http_get($url)
+    private function http_get($url, $params = [])
     {
+        if (!empty($params)) {
+            $url .= http_build_query($params);
+        }
         $oCurl = curl_init();
         if (stripos($url, "https://") !== FALSE) {
             curl_setopt($oCurl, CURLOPT_SSL_VERIFYPEER, FALSE);
