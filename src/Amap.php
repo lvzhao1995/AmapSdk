@@ -65,7 +65,7 @@ class Amap
 
     const ROAD_TRAFFIC_URL = '/traffic/status/road?';
 
-    const YUNTU_API_V3_URL = 'http://yuntuapi.amap.com';
+    const YUNTU_API_URL = 'http://yuntuapi.amap.com';
 
     const YUNTU_CREATE_TABLE_URL = '/datamanage/table/create';
 
@@ -78,6 +78,22 @@ class Amap
     const YUNTU_DELETE_DATA_URL = '/datamanage/data/delete';
 
     const YUNTU_IMPORT_STATUS_URL = '/datamanage/batch/importstatus?';
+
+    const YUNTU_SEARCH_LOCAL_URL = '/datasearch/local?';
+
+    const YUNTU_SEARCH_AROUND_URL = '/datasearch/around?';
+
+    const YUNTU_SEARCH_POLYGON_URL = '/datasearch/polygon?';
+
+    const YUNTU_SEARCH_ID_URL = '/datasearch/id?';
+
+    const YUNTU_DATA_LIST_URL = '/datamanage/data/list?';
+
+    const YUNTU_STATISTICS_CITY_URL = '/datasearch/statistics/province?';
+
+    const YUNTU_STATISTICS_PROVINCE_URL = '/datasearch/statistics/city?';
+
+    const YUNTU_STATISTICS_DISTRICT_URL = '/datasearch/statistics/district?';
 
     private $sign = false;
 
@@ -1066,7 +1082,7 @@ class Amap
         $default = [
             'level' => '',
             'extensions' => '',
-            'radius'=>''
+            'radius' => ''
         ];
         $ops = array_intersect_key($ops, $default);
 
@@ -1101,7 +1117,7 @@ class Amap
      * ]
      * @return bool|array 成功返回结果数组，内容参考 http://lbs.amap.com/api/webservice/guide/api/trafficstatus#road
      */
-    public function roadTraffic($name,$adcode='',$city='', $ops = [])
+    public function roadTraffic($name, $adcode = '', $city = '', $ops = [])
     {
         $default = [
             'level' => '',
@@ -1109,15 +1125,15 @@ class Amap
         ];
         $ops = array_intersect_key($ops, $default);
 
-        if(empty($adcode) && empty($city)){
-            $this->errMsg='city和adcode必填一个';
+        if (empty($adcode) && empty($city)) {
+            $this->errMsg = 'city和adcode必填一个';
             return false;
         }
 
         $ops['key'] = $this->key;
         $ops['name'] = $name;
-        $ops['adcode']=$adcode;
-        $ops['city']=$city;
+        $ops['adcode'] = $adcode;
+        $ops['city'] = $city;
 
         $url = self::API_V3_URL . self::CIRCLE_TRAFFIC_URL;
         if ($this->sign) {
@@ -1153,10 +1169,10 @@ class Amap
         if ($this->sign) {
             $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_post(self::YUNTU_API_V3_URL . self::YUNTU_CREATE_TABLE_URL, $ops);
+        $result = $this->http_post(self::YUNTU_API_URL . self::YUNTU_CREATE_TABLE_URL, $ops);
         if ($result) {
             $json = json_decode($result, true);
-            if (!$json || $json['status'] !== 1) {
+            if (!$json || $json['status'] != 1) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -1196,9 +1212,10 @@ class Amap
             $this->errMsg = '请先设置tableid';
             return false;
         }
-        $ops['key'] = $this->key;
-        $ops['tableid'] = $this->tableid;
-        $ops['loctype'] = $loctype;
+        if (empty($data['_name'])) {
+            $this->errMsg = '请填写数据名称';
+            return false;
+        }
         if ($loctype == 1) {
             if (empty($data['_location'])) {
                 $this->errMsg = '当loctype=1时，_location必填';
@@ -1210,14 +1227,20 @@ class Amap
                 return false;
             }
         }
-        $ops['data'] = json_encode($data);
+
+        $ops = [
+            'key' => $this->key,
+            'tableid' => $this->tableid,
+            'loctype' => $loctype,
+            'data' => json_encode($data)
+        ];
         if ($this->sign) {
             $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_post(self::YUNTU_API_V3_URL . self::YUNTU_CREATE_DATA_URL, $ops);
+        $result = $this->http_post(self::YUNTU_API_URL . self::YUNTU_CREATE_DATA_URL, $ops);
         if ($result) {
             $json = json_decode($result, true);
-            if (!$json || $json['status'] !== 1) {
+            if (!$json || $json['status'] != 1) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -1243,8 +1266,21 @@ class Amap
      */
     public function dataBatchCreate($file, $_name, $ops = [])
     {
+        $default = [
+            'loctype' => '',
+            '_address' => '',
+            'longitude' => '',
+            'latitude' => '',
+            'coordtype' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
         if (empty($this->tableid)) {
             $this->errMsg = '请先设置tableid';
+            return false;
+        }
+        if (empty($_name)) {
+            $this->errMsg = '_name必填';
             return false;
         }
         if (!empty($ops['loctype']) && $ops['loctype'] == 2) {
@@ -1262,17 +1298,25 @@ class Amap
                 return false;
             }
         }
-        $ops['key'] = $this->key;
-        $ops['tableid'] = $this->tableid;
-        $ops['file'] = new \CURLFile(realpath($file));
-        $ops['_name'] = $_name;
+        $path = realpath($file);
+        if (false === $path) {
+            $this->errMsg = '文件不存在或权限不足';
+            return false;
+        }
+
+        $ops = [
+            'key' => $this->key,
+            'tableid' => $this->tableid,
+            'file' => new \CURLFile(realpath($file)),
+            '_name' => $_name
+        ];
         if ($this->sign) {
             $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_post(self::YUNTU_API_V3_URL . self::YUNTU_BATCH_CREATE_DATA_URL, $ops, true);
+        $result = $this->http_post(self::YUNTU_API_URL . self::YUNTU_BATCH_CREATE_DATA_URL, $ops, true);
         if ($result) {
             $json = json_decode($result, true);
-            if (!$json || $json['status'] !== 1) {
+            if (!$json || $json['status'] != 1) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -1294,21 +1338,24 @@ class Amap
             $this->errMsg = '请先设置tableid';
             return false;
         }
-        $ops['key'] = $this->key;
-        $ops['tableid'] = $this->tableid;
-        $ops['loctype'] = $loctype;
         if (empty($data['_id'])) {
             $this->errMsg = '数据id不能为空';
             return false;
         }
-        $ops['data'] = json_encode($data);
+
+        $ops = [
+            'key' => $this->key,
+            'tableid' => $this->tableid,
+            'loctype' => $loctype,
+            'data' => json_encode($data)
+        ];
         if ($this->sign) {
             $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_post(self::YUNTU_API_V3_URL . self::YUNTU_UPDATE_DATA_URL, $ops, true);
+        $result = $this->http_post(self::YUNTU_API_URL . self::YUNTU_UPDATE_DATA_URL, $ops, true);
         if ($result) {
             $json = json_decode($result, true);
-            if (!$json || $json['status'] !== 1) {
+            if (!$json || $json['status'] != 1) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -1329,8 +1376,10 @@ class Amap
             $this->errMsg = '请先设置tableid';
             return false;
         }
-        $ops['key'] = $this->key;
-        $ops['tableid'] = $this->tableid;
+        if (empty($ids)) {
+            $this->errMsg = 'ids不能为空';
+            return false;
+        }
         if (is_string($ids)) {
             $ids = explode(',', $ids);
         }
@@ -1338,14 +1387,19 @@ class Amap
             $this->errMsg = '不能超过50个id';
             return false;
         }
-        $ops['ids'] = implode(',', $ids);
+
+        $ops = [
+            'key' => $this->key,
+            'tableid' => $this->tableid,
+            'ids' => implode(',', $ids)
+        ];
         if ($this->sign) {
             $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_post(self::YUNTU_API_V3_URL . self::YUNTU_DELETE_DATA_URL, $ops, true);
+        $result = $this->http_post(self::YUNTU_API_URL . self::YUNTU_DELETE_DATA_URL, $ops, true);
         if ($result) {
             $json = json_decode($result, true);
-            if (!$json || $json['status'] !== 1) {
+            if (!$json || $json['status'] != 1) {
                 $this->errMsg = $json['info'];
                 return false;
             }
@@ -1356,6 +1410,7 @@ class Amap
 
     /**
      * 批量处理管理接口为用户提供查看批处理的进度和结果信息。
+     *
      * @param string $batchid 批量处理任务唯一标识
      * @return bool|array 成功返回数组
      */
@@ -1365,12 +1420,407 @@ class Amap
             $this->errMsg = '请先设置tableid';
             return false;
         }
-        $ops['key'] = $this->key;
-        $ops['batchid'] = $batchid;
-        $url = self::YUNTU_API_V3_URL . self::YUNTU_IMPORT_STATUS_URL;
+        if (empty($batchid)) {
+            $this->errMsg = 'batchid不能为空';
+            return false;
+        }
+
+        $ops = [
+            'key' => $this->key,
+            'tableid' => $this->tableid,
+            'batchid' => $batchid
+        ];
         if ($this->sign) {
             $ops['sig'] = $this->signature($ops);
         }
+        $url = self::YUNTU_API_URL . self::YUNTU_IMPORT_STATUS_URL;
+        $result = $this->http_get($url, $ops);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] == 0) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 云图本地检索
+     *
+     * @param string $keywords 搜索关键词，可以为空。详细说明请查看高德云图文档。
+     * @param string $city 检索的城市，设定值非法或不正确时按照全国返回
+     * @param array $ops 可选参数，
+     *                  [
+     *                      'filter'=>'',//过滤条件，详情查看高德云图文档
+     *                      'sortrule'=>'',//排序规则，详情查看高的云图文档
+     *                      'limit'=>'',//每页的条数，最大为100，默认20
+     *                      'page'=>''//当前页数，默认为1
+     *                  ]
+     * @return bool|mixed
+     */
+    public function yuntuLocalSearch($keywords, $city, $ops = [])
+    {
+        $default = [
+            'filter' => '',
+            'sortrule' => '',
+            'limit' => '',
+            'page' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
+        if (empty($this->tableid)) {
+            $this->errMsg = '请先设置tableid';
+            return false;
+        }
+        if (empty($keywords)) {
+            $keywords = ' ';
+        }
+        if (empty($city)) {
+            $city = '全国';
+        }
+
+        $ops['key'] = $this->key;
+        $ops['tableid'] = $this->tableid;
+        $ops['keywords'] = $keywords;
+        $ops['city'] = $city;
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $url = self::YUNTU_API_URL . self::YUNTU_SEARCH_LOCAL_URL;
+        $result = $this->http_get($url, $ops);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] == 0) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 云图周边检索
+     *
+     * @param string $center 中心点坐标
+     * @param array $ops 可选参数，
+     *                  [
+     *                      'keywords'=>'',//搜索关键词，详情查看高德云图文档
+     *                      'radius'=>'',//查询半径，单位米，默认3000，取值范围[0,50000]，超出取值范围按默认值
+     *                      'filter'=>'',//过滤条件，详情查看高德云图文档
+     *                      'sortrule'=>'',//排序规则，详情查看高的云图文档
+     *                      'limit'=>'',//每页的条数，最大为100，默认20
+     *                      'page'=>''//当前页数，默认为1
+     *                  ]
+     * @return bool|mixed
+     */
+    public function yuntuAroundSearch($center, $ops = [])
+    {
+        $default = [
+            'keywords' => '',
+            'radius' => '',
+            'filter' => '',
+            'sortrule' => '',
+            'limit' => '',
+            'page' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
+        if (empty($this->tableid)) {
+            $this->errMsg = '请先设置tableid';
+            return false;
+        }
+        if (empty($center)) {
+            $this->errMsg = '请填写中心点坐标';
+            return false;
+        }
+        if (isset($ops['keywords']) && empty($ops['keywords'])) {
+            $ops['keywords'] = ' ';
+        }
+
+        $ops['key'] = $this->key;
+        $ops['tableid'] = $this->tableid;
+        $ops['center'] = $center;
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $url = self::YUNTU_API_URL . self::YUNTU_SEARCH_AROUND_URL;
+        $result = $this->http_get($url, $ops);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] == 0) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 云图多边形检索
+     *
+     * @param string $polygon 做标集合,矩形只需传对角线坐标，多边形首尾坐标需相同，坐标之间用分号分割
+     * @param array $ops 可选参数，
+     *                  [
+     *                      'keywords'=>'',//搜索关键词，详情查看高德云图文档
+     *                      'filter'=>'',//过滤条件，详情查看高德云图文档
+     *                      'sortrule'=>'',//排序规则，详情查看高的云图文档
+     *                      'limit'=>'',//每页的条数，最大为100，默认20
+     *                      'page'=>''//当前页数，默认为1
+     *                  ]
+     * @return bool|mixed
+     */
+    public function yuntuPolygonSearch($polygon, $ops = [])
+    {
+        $default = [
+            'keywords' => '',
+            'filter' => '',
+            'sortrule' => '',
+            'limit' => '',
+            'page' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
+        if (empty($this->tableid)) {
+            $this->errMsg = '请先设置tableid';
+            return false;
+        }
+        if (empty($polygon)) {
+            $this->errMsg = '请填写多边形坐标集合';
+            return false;
+        }
+        if (isset($ops['keywords']) && empty($ops['keywords'])) {
+            $ops['keywords'] = ' ';
+        }
+
+        $ops['key'] = $this->key;
+        $ops['tableid'] = $this->tableid;
+        $ops['polygon'] = $polygon;
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $url = self::YUNTU_API_URL . self::YUNTU_SEARCH_POLYGON_URL;
+        $result = $this->http_get($url, $ops);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] == 0) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 云图id检索
+     *
+     * @param string $_id 数据id
+     * @return bool|mixed
+     */
+    public function yuntuIdSearch($_id)
+    {
+        if (empty($this->tableid)) {
+            $this->errMsg = '请先设置tableid';
+            return false;
+        }
+        if (empty($_id)) {
+            $this->errMsg = '数据id不能为空';
+            return false;
+        }
+
+        $ops = [
+            'key' => $this->key,
+            'tableid' => $this->tableid,
+            '_id' => $_id
+        ];
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $url = self::YUNTU_API_URL . self::YUNTU_SEARCH_ID_URL;
+        $result = $this->http_get($url, $ops);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] == 0) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 按条件检索数据
+     *
+     * @param array $ops 可选参数
+     *                  [
+     *                      'filter'=>'',//过滤条件，详情查看高德云图文档
+     *                      'sortrule'=>'',//排序规则，详情查看高的云图文档
+     *                      'limit'=>'',//每页的条数，最大为100，默认20
+     *                      'page'=>''//当前页数，默认为1
+     *                  ]
+     * @return bool|mixed
+     */
+    public function yuntuListData($ops = [])
+    {
+        $default = [
+            'filter' => '',
+            'sortrule' => '',
+            'limit' => '',
+            'page' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
+        if (empty($this->tableid)) {
+            $this->errMsg = '请先设置tableid';
+            return false;
+        }
+
+        $ops['key'] = $this->key;
+        $ops['tableid'] = $this->tableid;
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $url = self::YUNTU_API_URL . self::YUNTU_DATA_LIST_URL;
+        $result = $this->http_get($url, $ops);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] == 0) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 省数据分布检索请求
+     *
+     * @param string $keywords 搜索关键词
+     * @param array $ops 可选参数
+     *                  [
+     *                      'country'=>'',//指定所需查询的国家名，目前仅支持中国，默认值中国
+     *                      'filter'=>'',//过滤条件，详情查看高德云图文档
+     *                  ]
+     * @return bool|mixed
+     */
+    public function provinceStatistics($keywords = ' ', $ops = [])
+    {
+        $default = [
+            'country' => '',
+            'filter' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
+        if (empty($this->tableid)) {
+            $this->errMsg = '请先设置tableid';
+            return false;
+        }
+        if (empty($keywords)) {
+            $keywords = ' ';
+        }
+
+        $ops['key'] = $this->key;
+        $ops['tableid'] = $this->tableid;
+        $ops['keywords'] = $keywords;
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $url = self::YUNTU_API_URL . self::YUNTU_STATISTICS_PROVINCE_URL;
+        $result = $this->http_get($url, $ops);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] == 0) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 省数据分布检索请求
+     *
+     * @param string $keywords 搜索关键词
+     * @param array $ops 可选参数
+     *                  [
+     *                      'province'=>'',//指定所需查询的省，返回含有数据的所有市名称以及数据量，根据数据量排序，默认值全国
+     *                      'filter'=>'',//过滤条件，详情查看高德云图文档
+     *                  ]
+     * @return bool|mixed
+     */
+    public function cityStatistics($keywords = ' ', $ops = [])
+    {
+        $default = [
+            'province' => '',
+            'filter' => ''
+        ];
+        $ops = array_intersect_key($ops, $default);
+
+        if (empty($this->tableid)) {
+            $this->errMsg = '请先设置tableid';
+            return false;
+        }
+        if (empty($keywords)) {
+            $keywords = ' ';
+        }
+
+        $ops['key'] = $this->key;
+        $ops['tableid'] = $this->tableid;
+        $ops['keywords'] = $keywords;
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $url = self::YUNTU_API_URL . self::YUNTU_STATISTICS_CITY_URL;
+        $result = $this->http_get($url, $ops);
+        if ($result) {
+            $json = json_decode($result, true);
+            if (!$json || $json['status'] == 0) {
+                $this->errMsg = $json['info'];
+                return false;
+            }
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 区县数据分布检索
+     *
+     * @param string $province 指定所需查询的省
+     * @param string $city 指定所需查询的市
+     * @param string $keywords 搜索关键词
+     * @param string $filter 过滤条件
+     * @return bool|mixed
+     */
+    public function districtStatistics($province, $city, $keywords = ' ', $filter = '')
+    {
+        if (empty($this->tableid)) {
+            $this->errMsg = '请先设置tableid';
+            return false;
+        }
+        if (empty($keywords)) {
+            $keywords = ' ';
+        }
+
+        $ops = [
+            'key' => $this->key,
+            'tableid' => $this->tableid,
+            'keywords' => $keywords,
+            'province' => $province,
+            'city' => $city,
+            'filter' => $filter
+        ];
+        if ($this->sign) {
+            $ops['sig'] = $this->signature($ops);
+        }
+        $url = self::YUNTU_API_URL . self::YUNTU_STATISTICS_DISTRICT_URL;
         $result = $this->http_get($url, $ops);
         if ($result) {
             $json = json_decode($result, true);
