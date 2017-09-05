@@ -1232,7 +1232,7 @@ class Amap
             'key' => $this->key,
             'tableid' => $this->tableid,
             'loctype' => $loctype,
-            'data' => json_encode($data)
+            'data' => json_encode($data, JSON_UNESCAPED_UNICODE)
         ];
         if ($this->sign) {
             $ops['sig'] = $this->signature($ops);
@@ -1347,7 +1347,7 @@ class Amap
             'key' => $this->key,
             'tableid' => $this->tableid,
             'loctype' => $loctype,
-            'data' => json_encode($data)
+            'data' => json_encode($data, JSON_UNESCAPED_UNICODE)
         ];
         if ($this->sign) {
             $ops['sig'] = $this->signature($ops);
@@ -1842,7 +1842,14 @@ class Amap
     private function signature($data = [])
     {
         ksort($data, SORT_STRING);
-        $tmpStr = http_build_query($data);
+        $tmpStr = '';
+        foreach ($data as $key => $value) {
+            if (strlen($tmpStr) == 0) {
+                $tmpStr .= $key . "=" . $value;
+            } else {
+                $tmpStr .= "&" . $key . "=" . $value;
+            }
+        }
         $tmpStr .= $this->private_key;
         $signStr = md5($tmpStr);
         return $signStr;
