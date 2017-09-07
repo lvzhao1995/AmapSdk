@@ -1038,7 +1038,7 @@ class Amap
         ];
         $ops = array_intersect_key($ops, $default);
 
-        if (is_string($rectangle)) {
+        if (!is_array($rectangle)) {
             $rectangle = explode(';', $rectangle);
         }
         if (count($rectangle) != 2) {
@@ -1380,7 +1380,7 @@ class Amap
             $this->errMsg = 'ids不能为空';
             return false;
         }
-        if (is_string($ids)) {
+        if (!is_array($ids)) {
             $ids = explode(',', $ids);
         }
         if (count($ids) > 50) {
