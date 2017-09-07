@@ -1352,7 +1352,7 @@ class Amap
         if ($this->sign) {
             $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_post(self::YUNTU_API_URL . self::YUNTU_UPDATE_DATA_URL, $ops, true);
+        $result = $this->http_post(self::YUNTU_API_URL . self::YUNTU_UPDATE_DATA_URL, $ops);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] != 1) {
@@ -1396,7 +1396,7 @@ class Amap
         if ($this->sign) {
             $ops['sig'] = $this->signature($ops);
         }
-        $result = $this->http_post(self::YUNTU_API_URL . self::YUNTU_DELETE_DATA_URL, $ops, true);
+        $result = $this->http_post(self::YUNTU_API_URL . self::YUNTU_DELETE_DATA_URL, $ops);
         if ($result) {
             $json = json_decode($result, true);
             if (!$json || $json['status'] != 1) {
