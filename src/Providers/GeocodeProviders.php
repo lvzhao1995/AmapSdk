@@ -8,6 +8,9 @@ use Amap\Result\Base\Location;
 use Amap\Result\Geo\GeoResult;
 use Amap\Result\Geo\ReGeoResult;
 
+/**
+ * 地理/逆地理编码
+ */
 class GeocodeProviders extends BaseProviders
 {
     const GEO_URL = 'geocode/geo';
@@ -46,9 +49,9 @@ class GeocodeProviders extends BaseProviders
      * @param string $location 经纬度坐标,多个经纬度以"|"分隔或传入数组
      * @param int $radius 搜索半径，取值范围0~3000，单位：米
      * @param string $extensions 返回结果控制
-     * @param null $poiType 返回附近poi类型，extensions为all是生效，多个坐标时不生效
-     * @param null $roadLevel 道路等级
-     * @param null $homeOrCorp 是否优化poi返回顺序
+     * @param string $poiType 返回附近poi类型，extensions为all时生效，多个坐标时不生效；多个POI类型间用'|'分隔
+     * @param int $roadLevel 道路等级
+     * @param int $homeOrCorp 是否优化poi返回顺序
      * @return ReGeoResult
      */
     public function reGeo($location, $radius = 1000, $extensions = 'base', $poiType = null, $roadLevel = null, $homeOrCorp = null)
