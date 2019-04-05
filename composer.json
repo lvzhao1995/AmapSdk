@@ -13,7 +13,11 @@
     "email" : "abc-1.2@qq.com"
   } ],
   "require" : {
-    "php" : ">=5.5"
+    "php" : ">=5.6",
+    "ext-json": "*",
+    "ext-simplexml": "*",
+    "guzzlehttp/guzzle": "^6.3",
+    "pimple/pimple": "^3.2"
   },
   "autoload": {
     "psr-4": {
