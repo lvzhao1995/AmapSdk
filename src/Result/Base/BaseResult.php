@@ -21,13 +21,12 @@ class BaseResult extends SimpleData
     /**
      * @var array
      */
-    protected $result;
+//    protected $result;
 
     public function __construct($result)
     {
-        $this->status = empty($result['status']) ? null : $result['status'];
-        $this->info = empty($result['info']) ? null : $result['info'];
-        $this->result = $result;
+        parent::__construct($result);
+//        $this->result = $result;
     }
 
     /**

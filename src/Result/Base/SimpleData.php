@@ -16,25 +16,10 @@ class SimpleData implements \ArrayAccess
     protected function parseData($data)
     {
         foreach (get_object_vars($this) as $c => $v) {
-            $this->{$c} = empty($data[$c]) ? null : $data[$c];
+            if (is_null($this->{$c})) {
+                $this->{$c} = array_key_exists($c, $data) && !is_array($data[$c]) ? $data[$c] : null;
+            }
         }
-    }
-
-    /**
-     * Whether a offset exists
-     * @link https://php.net/manual/en/arrayaccess.offsetexists.php
-     * @param mixed $offset <p>
-     * An offset to check for.
-     * </p>
-     * @return boolean true on success or false on failure.
-     * </p>
-     * <p>
-     * The return value will be casted to boolean if non-boolean was returned.
-     * @since 5.0.0
-     */
-    public function offsetExists($offset)
-    {
-        return property_exists($this, $offset);
     }
 
     /**
@@ -54,6 +39,23 @@ class SimpleData implements \ArrayAccess
         } else {
             throw new InvalidIndexException();
         }
+    }
+
+    /**
+     * Whether a offset exists
+     * @link https://php.net/manual/en/arrayaccess.offsetexists.php
+     * @param mixed $offset <p>
+     * An offset to check for.
+     * </p>
+     * @return boolean true on success or false on failure.
+     * </p>
+     * <p>
+     * The return value will be casted to boolean if non-boolean was returned.
+     * @since 5.0.0
+     */
+    public function offsetExists($offset)
+    {
+        return property_exists($this, $offset);
     }
 
     /**
