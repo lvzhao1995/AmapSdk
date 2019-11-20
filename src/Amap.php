@@ -418,7 +418,8 @@ class Amap
         $data = [
             'origins' => $origins,
             'destination' => $destination,
-            'type' => $type
+            'type' => $type,
+            'key' => $this->key
         ];
         $url = self::API_V3_URL . self::DISTANCE_URL;
         if ($this->sign) {
